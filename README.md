@@ -1,6 +1,6 @@
 # Scale-to-Insight
 
-Ecossistema de serviços e dados para e-commerce, com ingestão de eventos, processamento analítico e exposição de KPIs financeiros em tempo quase real.
+Ecossistema de serviços e dados para e-commerce, com ingestão de eventos, processamento analítico e exposição de KPIs financeiros em tempo quase real, implementado com Quarkus.
 
 Elaborado pelos alunos: André, Fabrício e Willy.
 
@@ -27,6 +27,7 @@ A documentação completa das decisões arquiteturais tomadas pelo grupo encontr
 ## Stack
 
 - Java 21
+- Quarkus 3
 - Maven
 - Nginx
 - SQLite

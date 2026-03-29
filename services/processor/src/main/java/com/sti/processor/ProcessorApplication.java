@@ -2,64 +2,58 @@ package com.sti.processor;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.quarkus.scheduler.Scheduled;
+import jakarta.annotation.PostConstruct;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.time.ZonedDateTime;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
+@ApplicationScoped
 public class ProcessorApplication {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private static final AppConfig CONFIG = AppConfig.load();
+    @ConfigProperty(name = "processor.raw-sales-log", defaultValue = "/data/raw/sales/events.jsonl")
+    String rawSalesLogPath;
 
-    // Inicializa estruturas e agenda ciclos periodicos de ETL com shutdown seguro.
-    public static void main(String[] args) throws Exception {
+    @ConfigProperty(name = "processor.state-file", defaultValue = "/data/warehouse/processor.state")
+    String stateFilePath;
+
+    @ConfigProperty(name = "processor.warehouse-db", defaultValue = "/data/warehouse/warehouse.db")
+    String warehouseDbPath;
+
+    // Inicializa as estruturas do warehouse no startup do serviço.
+    @PostConstruct
+    void onStart() throws Exception {
         initDb();
+    }
 
-        ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-
-        // Scheduler assíncrono evita loop infinito bloqueando a thread principal.
-        scheduler.scheduleWithFixedDelay(() -> {
-            try {
-                processNewSales();
-                refreshDataMart();
-            } catch (Exception ex) {
-                System.err.println("ETL cycle failed: " + ex.getMessage());
-            }
-        }, 0, CONFIG.processIntervalSeconds(), TimeUnit.SECONDS);
-
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            scheduler.shutdown();
-            try {
-                if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
-                    scheduler.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                scheduler.shutdownNow();
-            }
-        }));
-
-        new CountDownLatch(1).await();
+    // Executa o ciclo ETL no intervalo configurável.
+    @Scheduled(every = "{processor.interval}", delayed = "1s", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
+    void runEtlCycle() {
+        try {
+            processNewSales();
+            refreshDataMart();
+        } catch (Exception ex) {
+            System.err.println("ETL cycle failed: " + ex.getMessage());
+        }
     }
 
     // Cria tabelas do warehouse/data mart quando ainda nao existem.
-    private static void initDb() throws Exception {
-        Files.createDirectories(CONFIG.warehouseDb().getParent());
+    private void initDb() throws Exception {
+        Path warehouseDb = getWarehouseDb();
+        Files.createDirectories(warehouseDb.getParent());
 
-        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + CONFIG.warehouseDb()); Statement stmt = conn.createStatement()) {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + warehouseDb); Statement stmt = conn.createStatement()) {
             stmt.execute(
                 "CREATE TABLE IF NOT EXISTS dim_date (" +
                     "date_key INTEGER PRIMARY KEY," +
@@ -92,20 +86,21 @@ public class ProcessorApplication {
     }
 
     // Processa somente novos eventos de vendas usando controle de offset em arquivo de estado.
-    private static void processNewSales() throws Exception {
-        if (!Files.exists(CONFIG.rawSalesLog())) {
+    private void processNewSales() throws Exception {
+        Path rawSalesLog = getRawSalesLog();
+        if (!Files.exists(rawSalesLog)) {
             return;
         }
 
         // Usa offset para processar apenas novos eventos e evitar duplicacao.
         long offset = loadOffset();
-        long fileSize = Files.size(CONFIG.rawSalesLog());
+        long fileSize = Files.size(rawSalesLog);
         if (offset > fileSize) {
             offset = 0;
         }
 
-        try (RandomAccessFile raf = new RandomAccessFile(CONFIG.rawSalesLog().toFile(), "r");
-             Connection conn = DriverManager.getConnection("jdbc:sqlite:" + CONFIG.warehouseDb())) {
+        try (RandomAccessFile raf = new RandomAccessFile(rawSalesLog.toFile(), "r");
+             Connection conn = DriverManager.getConnection("jdbc:sqlite:" + getWarehouseDb())) {
 
             raf.seek(offset);
 
@@ -131,7 +126,7 @@ public class ProcessorApplication {
     }
 
     // Garante existencia da dimensao de data para relacionamento com fatos de venda.
-    private static void upsertDimDate(Connection conn, int dateKey, String fullDate, int year, int month, int day) throws Exception {
+    private void upsertDimDate(Connection conn, int dateKey, String fullDate, int year, int month, int day) throws Exception {
         try (PreparedStatement stmt = conn.prepareStatement(
             "INSERT OR IGNORE INTO dim_date (date_key, full_date, year, month, day) VALUES (?, ?, ?, ?, ?)")) {
             stmt.setInt(1, dateKey);
@@ -144,7 +139,7 @@ public class ProcessorApplication {
     }
 
     // Insere fato de venda no warehouse evitando duplicidade por order_id.
-    private static void insertFactSale(Connection conn, Map<String, Object> event, int dateKey) throws Exception {
+    private void insertFactSale(Connection conn, Map<String, Object> event, int dateKey) throws Exception {
         try (PreparedStatement stmt = conn.prepareStatement(
             "INSERT OR IGNORE INTO fact_sales (order_id, created_at, date_key, amount, payment_method, status) VALUES (?, ?, ?, ?, ?, ?)")) {
             stmt.setString(1, String.valueOf(event.get("order_id")));
@@ -158,8 +153,8 @@ public class ProcessorApplication {
     }
 
     // Recalcula o data mart de performance a partir dos fatos consolidados.
-    private static void refreshDataMart() throws Exception {
-        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + CONFIG.warehouseDb());
+    private void refreshDataMart() throws Exception {
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + getWarehouseDb());
              Statement stmt = conn.createStatement()) {
             stmt.execute("DELETE FROM dm_sales_performance");
             // Recalculo total do data mart por simplicidade e legibilidade.
@@ -172,11 +167,12 @@ public class ProcessorApplication {
     }
 
     // Le o deslocamento atual do processador para retomar do ponto correto no arquivo raw.
-    private static long loadOffset() throws Exception {
-        if (!Files.exists(CONFIG.stateFile())) {
+    private long loadOffset() throws Exception {
+        Path stateFile = getStateFile();
+        if (!Files.exists(stateFile)) {
             return 0L;
         }
-        String raw = Files.readString(CONFIG.stateFile(), StandardCharsets.UTF_8).trim();
+        String raw = Files.readString(stateFile, StandardCharsets.UTF_8).trim();
         if (raw.isEmpty()) {
             return 0L;
         }
@@ -184,19 +180,14 @@ public class ProcessorApplication {
     }
 
     // Persiste o novo deslocamento apos processamento de eventos.
-    private static void saveOffset(long offset) throws Exception {
-        Files.createDirectories(CONFIG.stateFile().getParent());
-        Files.writeString(CONFIG.stateFile(), String.valueOf(offset), StandardCharsets.UTF_8);
-    }
-
-    // Le variavel de ambiente com fallback padrao.
-    private static String getEnv(String key, String fallback) {
-        String value = System.getenv(key);
-        return value == null || value.isBlank() ? fallback : value;
+    private void saveOffset(long offset) throws Exception {
+        Path stateFile = getStateFile();
+        Files.createDirectories(stateFile.getParent());
+        Files.writeString(stateFile, String.valueOf(offset), StandardCharsets.UTF_8);
     }
 
     // Converte valor generico para double com tolerancia a erro de formato.
-    private static double toDouble(Object value) {
+    private double toDouble(Object value) {
         if (value instanceof Number number) {
             return number.doubleValue();
         }
@@ -207,15 +198,15 @@ public class ProcessorApplication {
         }
     }
 
-    private record AppConfig(Path rawSalesLog, Path stateFile, Path warehouseDb, int processIntervalSeconds) {
-        // Carrega configuracoes do processador a partir de variaveis de ambiente.
-        private static AppConfig load() {
-            return new AppConfig(
-                Paths.get(getEnv("RAW_SALES_LOG", "/data/raw/sales/events.jsonl")),
-                Paths.get(getEnv("STATE_FILE", "/data/warehouse/processor.state")),
-                Paths.get(getEnv("WAREHOUSE_DB", "/data/warehouse/warehouse.db")),
-                Integer.parseInt(getEnv("PROCESS_INTERVAL_SECONDS", "10"))
-            );
-        }
+    private Path getRawSalesLog() {
+        return Path.of(rawSalesLogPath);
+    }
+
+    private Path getStateFile() {
+        return Path.of(stateFilePath);
+    }
+
+    private Path getWarehouseDb() {
+        return Path.of(warehouseDbPath);
     }
 }

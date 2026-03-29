@@ -18,9 +18,9 @@ services:
       context: ./services/orders_service
     container_name: sti-orders
     environment:
-      RAW_ROOT: /data/raw
-      AZURE_STORAGE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
-      AZURE_RAW_CONTAINER: raw
+      ORDERS_RAW_ROOT: /data/raw
+      ORDERS_AZURE_STORAGE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+      ORDERS_AZURE_RAW_CONTAINER: raw
     volumes:
       - ./data/raw:/data/raw
     depends_on:
@@ -32,7 +32,7 @@ services:
       context: ./services/finance_service
     container_name: sti-finance
     environment:
-      WAREHOUSE_DB: /data/warehouse/warehouse.db
+      FINANCE_WAREHOUSE_DB: /data/warehouse/warehouse.db
     volumes:
       - ./data/warehouse:/data/warehouse
 
@@ -42,10 +42,10 @@ services:
       context: ./services/processor
     container_name: sti-processor
     environment:
-      RAW_SALES_LOG: /data/raw/sales/events.jsonl
-      WAREHOUSE_DB: /data/warehouse/warehouse.db
-      STATE_FILE: /data/warehouse/processor.state
-      PROCESS_INTERVAL_SECONDS: 5
+      PROCESSOR_RAW_SALES_LOG: /data/raw/sales/events.jsonl
+      PROCESSOR_WAREHOUSE_DB: /data/warehouse/warehouse.db
+      PROCESSOR_STATE_FILE: /data/warehouse/processor.state
+      PROCESSOR_INTERVAL: 5s
     volumes:
       - ./data/raw:/data/raw
       - ./data/warehouse:/data/warehouse
