@@ -1,8 +1,10 @@
 # Relatório Técnico - Scale-to-Insight
 
+Este relatório técnico apresenta o projeto Scale-to-Insight, concebido para apoiar a transição de uma startup de e-commerce de uma arquitetura monolítica para um ecossistema de dados moderno, distribuído e orientado a eventos. Diante de picos de tráfego cada vez mais frequentes e da necessidade de decisões financeiras rápidas e embasadas, a solução proposta separa responsabilidades entre ingestão operacional, processamento analítico e exposição de indicadores. O resultado é uma base arquitetural capaz de sustentar crescimento, melhorar a resiliência operacional e entregar inteligência de negócio em tempo quase real para o setor financeiro.
+
 ## 1. Objetivo técnico
 
-Implementar uma arquitetura enxuta e reproduzível para ingestão e análise de dados de vendas, com foco em:
+Implementar uma arquitetura moderna para ingestão e análise de dados de vendas, com foco em:
 
 1. Escalabilidade modular de serviços.
 2. Pipeline de dados auditável.
