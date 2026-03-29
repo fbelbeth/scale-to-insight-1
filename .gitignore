@@ -1,0 +1,7 @@
+# Java/Maven build outputs
+**/target/
+
+# Generated data by local execution
+data/raw/**/*.jsonl
+data/warehouse/*.db
+data/warehouse/*.state

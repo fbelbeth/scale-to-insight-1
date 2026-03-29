@@ -1,0 +1,49 @@
+# Pipeline de integração contínua para validar build e fluxo ponta a ponta.
+name: CI/CD Pipeline – Scale-to-Insight
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+
+jobs:
+  build-and-deploy-simulation:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Obtém o conteúdo do repositório para o runner.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Verifica se o docker compose é válido antes do build.
+      - name: Validate docker compose
+        run: docker compose config
+
+      # Compila as imagens de todos os serviços.
+      - name: Build services
+        run: docker compose build
+
+      # Sobe os containers em background para os testes de fumaça.
+      - name: Deploy simulation (docker compose up)
+        run: docker compose up -d
+
+      # Aguarda inicialização e valida endpoints de saúde.
+      - name: Wait services
+        run: |
+          sleep 20
+          curl -f http://localhost:8080/orders/health
+          curl -f http://localhost:8080/finance/health
+
+      # Publica uma venda de exemplo e garante resposta do endpoint de KPI.
+      - name: Send sample sale and check KPI endpoint
+        run: |
+          curl -f -X POST http://localhost:8080/orders/orders \
+            -H "Content-Type: application/json" \
+            -d '{"amount": 199.9, "payment_method": "pix", "status": "approved"}'
+          sleep 8
+          curl -f http://localhost:8080/finance/kpis
+
+      # Limpa volumes e containers mesmo se uma etapa anterior falhar.
+      - name: Shutdown environment
+        if: always()
+        run: docker compose down -v

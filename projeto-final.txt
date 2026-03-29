@@ -1,0 +1,35 @@
+Projeto Final: O Ecossistema de Dados "Scale-to-Insight"
+Contexto: Uma startup de e-commerce de rápido crescimento precisa migrar sua aplicação monolítica para uma arquitetura moderna que suporte picos de tráfego e forneça inteligência de negócio em tempo real para o setor financeiro.
+
+Pré-requisitos:
+Obrigatoriamente, deve ser composto por um grupo de no mínimo 3 pessoas
+
+1. O Desafio Técnico
+Cada grupo deverá entregar uma infraestrutura completa (emulada via Docker ou em Cloud Free Tier) que contemple:
+
+Camada de Serviços:
+
+Substituir o "monolito" por ao menos dois serviços conteinerizados (Docker).
+
+Um Proxy Reverso (Nginx) servindo como porta de entrada, gerenciando o tráfego.
+
+Simulação de um ambiente de Cloud (usando LocalStack para AWS ou serviços reais gratuitos).
+
+Camada de Dados:
+
+Implementação de um fluxo de dados: Origem (App) -> Processamento -> Destino.
+
+Criação de um Data Lake (camada Raw) para logs de acesso e vendas.
+
+Modelagem de um Data Warehouse com ao menos um Data Mart focado em "Performance de Vendas" ou "Saúde Financeira".
+
+Automação:
+
+Um desenho de Pipeline CI/CD (GitHub Actions ou GitLab CI) que automatize o build da imagem Docker e o deploy.
+
+2. Cronograma de Entrega
+Data Final de Entrega: 01 de Abril de 2026.
+
+Entregáveis: 
+- Repositório no GitHub com README.md detalhando a arquitetura e um arquivo docker-compose.yml para subir o ambiente localmente.
+- Relatório técnico explicando todas as decisões arquiteturais e com desenho da arquitetura de dados (Diagrama de Atores e Componentes).

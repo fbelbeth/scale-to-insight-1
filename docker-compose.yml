@@ -1,0 +1,60 @@
+# Orquestração local dos serviços da plataforma Scale-to-Insight.
+services:
+  # Gateway HTTP único para expor APIs internas.
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: sti-nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - orders-service
+      - finance-service
+
+  # Serviço de ingestão de pedidos e escrita na camada raw.
+  orders-service:
+    build:
+      context: ./services/orders_service
+    container_name: sti-orders
+    environment:
+      RAW_ROOT: /data/raw
+      AZURE_STORAGE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+      AZURE_RAW_CONTAINER: raw
+    volumes:
+      - ./data/raw:/data/raw
+    depends_on:
+      - azurite
+
+  # Serviço de leitura analítica dos KPIs financeiros.
+  finance-service:
+    build:
+      context: ./services/finance_service
+    container_name: sti-finance
+    environment:
+      WAREHOUSE_DB: /data/warehouse/warehouse.db
+    volumes:
+      - ./data/warehouse:/data/warehouse
+
+  # Job ETL periódico que atualiza warehouse e data mart.
+  processor:
+    build:
+      context: ./services/processor
+    container_name: sti-processor
+    environment:
+      RAW_SALES_LOG: /data/raw/sales/events.jsonl
+      WAREHOUSE_DB: /data/warehouse/warehouse.db
+      STATE_FILE: /data/warehouse/processor.state
+      PROCESS_INTERVAL_SECONDS: 5
+    volumes:
+      - ./data/raw:/data/raw
+      - ./data/warehouse:/data/warehouse
+
+  # Emulador local de Azure Blob Storage.
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: sti-azurite
+    command: "azurite --blobHost 0.0.0.0 --blobPort 10000"
+    ports:
+      - "10000:10000"
+
