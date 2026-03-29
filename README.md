@@ -1,6 +1,10 @@
 # Scale-to-Insight
 
-Ecossistema mínimo de serviços e dados para e-commerce, com ingestão de eventos, processamento analítico e exposição de KPIs financeiros em tempo quase real.
+Ecossistema de serviços e dados para e-commerce, com ingestão de eventos, processamento analítico e exposição de KPIs financeiros em tempo quase real.
+
+Elaborado pelos alunos: André, Fabrício e Willy.
+
+A documentação completa das decisões arquiteturais tomadas pelo grupo encontra-se em [Relatório Técnico](RELATORIO_TECNICO.md)
 
 ## O que este projeto entrega
 
@@ -86,8 +90,3 @@ docker compose down -v
 - `services/finance_service`: API de indicadores financeiros.
 - `services/processor`: ETL e atualização do data mart.
 - `.github/workflows/ci-cd.yml`: pipeline CI/CD.
-
-## Documentação complementar
-
-- `RELATORIO_TECNICO.md`: justificativas técnicas e decisões arquiteturais.
-- `GUIA_APRENDIZADO_SISTEMA.md`: tutorial de implementação e entendimento dos módulos.
