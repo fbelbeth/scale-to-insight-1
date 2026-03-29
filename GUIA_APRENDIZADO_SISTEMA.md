@@ -1,6 +1,6 @@
 # Guia de Implementação e Aprendizado - Scale-to-Insight
 
-Este guia foi escrito para quem quer entender e reproduzir um projeto semelhante, do zero, usando arquitetura de serviços, pipeline de dados e operação local com Docker.
+Este guia foi escrito para quem quer entender e reproduzir um projeto semelhante, do zero, usando arquitetura de serviços, pipeline de dados e operação local com Docker. A implementação utiliza Quarkus 3 como base dos serviços.
 
 ## 1. O que você vai construir
 
@@ -14,10 +14,10 @@ Este guia foi escrito para quem quer entender e reproduzir um projeto semelhante
 ## 2. Ordem recomendada de implementação
 
 1. Subir infraestrutura base com Docker Compose.
-2. Implementar health checks dos serviços.
+2. Estruturar APIs REST com Quarkus (JAX-RS) e health checks.
 3. Implementar endpoint de pedido (origem de dados).
-4. Persistir eventos raw.
-5. Implementar ETL incremental com offset.
+4. Persistir eventos raw e publicar no blob.
+5. Implementar ETL incremental com offset e scheduler do Quarkus.
 6. Implementar data mart de performance.
 7. Implementar endpoint de KPI.
 8. Integrar CI/CD e smoke tests.
@@ -48,8 +48,8 @@ Papel:
 Conceitos-chave:
 
 - JSONL para escrita append-only.
-- Configuração centralizada via `AppConfig`.
-- Abstração de rota para evitar repetição de validações.
+- Configuração centralizada com `@ConfigProperty`.
+- Endpoints REST com JAX-RS (`@Path`, `@GET`, `@POST`).
 
 ### 3.3 Processor (ETL)
 
@@ -62,8 +62,8 @@ Papel:
 Conceitos-chave:
 
 - Offset em arquivo de estado para processar apenas novos registros.
-- Scheduler com `ScheduledExecutorService` em vez de loop bloqueante.
-- Shutdown hook para parada segura do processo.
+- Scheduler com `@Scheduled` do Quarkus em vez de loop bloqueante.
+- Controle de execução não concorrente no ciclo ETL.
 
 ### 3.4 Finance Service (consumo analítico)
 
@@ -75,7 +75,7 @@ Papel:
 Conceitos-chave:
 
 - Serviço de leitura separado da escrita transacional.
-- Mesma estratégia de abstração de rota e configuração centralizada.
+- Mesma estratégia de API REST declarativa e configuração centralizada.
 
 ### 3.5 Azurite (Azure local)
 
@@ -125,9 +125,9 @@ Uso:
 
 1. Separação por responsabilidade de módulo.
 2. Configuração centralizada por serviço.
-3. Roteamento HTTP com helper reutilizável.
+3. Endpoints declarativos com Quarkus e JAX-RS.
 4. ETL incremental com controle de offset.
-5. Pipeline CI com validação funcional mínima.
+5. Pipeline CI com validação funcional ponta a ponta.
 
 ## 7. Como validar que implementou corretamente
 
