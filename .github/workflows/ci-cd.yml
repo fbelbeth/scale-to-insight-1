@@ -81,7 +81,8 @@ jobs:
               git clone https://$GIT_PAT@github.com/${{ github.repository }}.git .
             else
               git remote set-url origin https://$GIT_PAT@github.com/${{ github.repository }}.git
-              git pull origin main
+              git fetch origin main
+              git reset --hard origin/main
             fi
             
             docker compose pull
