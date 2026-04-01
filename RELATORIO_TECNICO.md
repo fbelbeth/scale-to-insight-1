@@ -74,10 +74,68 @@ Agregador resumido exclusivo com viés para o usuário logista/diretoria:
 
 ## 6. Qualidade, Testabilidade e Integração (CI/CD)
 
-Como padrão da indústria, o pipeline `.github/workflows/ci-cd.yml` garante a homologação através de blocos concisos que testam todo o processo:
-- **Build Efetivo**: Compila os serviços Quarkus e valida a conteinerização completa com Docker Compose.
-- **Deploy Simulado**: sobe os contêineres em background para validar inicialização integrada do ecossistema.
-- **Smoke Tests Completos**: executa health checks, publica venda de exemplo e valida o endpoint de KPIs após o ciclo ETL.
+A pipeline está dividida em duas etapas principais, garantindo que nenhuma alteração chegue ao usuário final sem validação.
+
+1. Integração Contínua (CI) e Validação E2E
+Este estágio atua como um filtro de qualidade em um ambiente isolado:
+Sanidade: Valida a sintaxe do Docker Compose e constrói as imagens dos microserviços.
+Simulação Realista: Sobe a infraestrutura completa (incluindo emuladores de nuvem) para realizar testes de fumaça (Health Checks).
+Validação de Negócio (E2E): Simula o fluxo de dados ponta a ponta — desde a ingestão de uma venda até a verificação dos KPIs processados.
+Cleanup: Garante a destruição do ambiente temporário após os testes, evitando desperdício de recursos.
+
+2. Entrega Contínua (CD) e Deploy Automático
+Executado apenas após o sucesso total da CI e exclusivamente em branches protegidas (main):
+Imutabilidade: As imagens validadas são publicadas no Docker Hub, garantindo que o que foi testado é exatamente o que será instalado.
+Atualização Automática: Via SSH, a pipeline sincroniza o repositório no servidor de produção, realiza o pull das novas imagens e reinicia os serviços (Zero-Touch Deployment).
+
+Benefícios Estratégicos
+Redução de Erros: Bloqueio automático de deploys caso ocorram falhas de integração.
+
+Rastreabilidade: Histórico completo de versões via Docker Registry.
+
+Agilidade: Processo de deploy totalmente automatizado, eliminando intervenções manuais propensas a falhas.
+
+```mermaid
+graph TD
+    %% Gatilho
+    Start([Push / PR na Branch Main]) --> Job1
+
+    %% JOB 1 - CI
+    subgraph Job1 [Job 1: CI & Validação E2E]
+        direction TB
+        A[Checkout Código] --> B{Validar YAML<br/>Docker Config}
+        B -- Sucesso --> C[Build das Imagens]
+        C --> D[Deploy Simulation<br/>docker compose up -d]
+        D --> E[Wait Services<br/>Sleep 20s]
+        E --> F{Health Check<br/>Endpoints OK?}
+        F -- Sim --> G[Teste de Fluxo:<br/>POST Venda -> GET KPI]
+        G --> H[Shutdown & Cleanup<br/>docker compose down -v]
+    end
+
+    %% Decisão de Deploy
+    H --> Check{Testes Passaram?}
+    Check -- Sim --> Job2
+    Check -- Não --> Fail([Pipeline Interrompida])
+
+    %% JOB 2 - CD
+    subgraph Job2 [Job 2: Deploy Automático]
+        direction TB
+        I[Login Docker Hub] --> J[Push Imagens Oficiais]
+        J --> K[Acesso SSH ao Servidor]
+        K --> L[Pull & Restart Services]
+    end
+
+    %% Finalização
+    L --> End([Sistema Atualizado em Produção])
+
+    %% Estilização
+    style Job1 fill:#f0f7ff,stroke:#005cc5
+    style Job2 fill:#f6ffed,stroke:#52c41a
+    style Start fill:#fff,stroke:#333
+    style End fill:#95de64,stroke:#333
+    style Fail fill:#ffbb96,stroke:#333
+```
+
 
 ## 7. Apontamentos e Limitações
 

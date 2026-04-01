@@ -5,36 +5,31 @@ on:
   push:
     branches: ["main", "master"]
   pull_request:
-
+  workflow_dispatch:
+  
 jobs:
-  build-and-deploy-simulation:
+  build-and-test-simulation:
     runs-on: ubuntu-latest
 
     steps:
-      # Obtém o conteúdo do repositório para o runner.
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Verifica se o docker compose é válido antes do build.
       - name: Validate docker compose
         run: docker compose config
 
-      # Compila as imagens de todos os serviços.
       - name: Build services
         run: docker compose build
 
-      # Sobe os containers em background para os testes de fumaça.
       - name: Deploy simulation (docker compose up)
         run: docker compose up -d
 
-      # Aguarda inicialização e valida endpoints de saúde.
       - name: Wait services
         run: |
           sleep 20
           curl -f http://localhost:8080/orders/health
           curl -f http://localhost:8080/finance/health
 
-      # Publica uma venda de exemplo e garante resposta do endpoint de KPI.
       - name: Send sample sale and check KPI endpoint
         run: |
           curl -f -X POST http://localhost:8080/orders/orders \
@@ -43,7 +38,51 @@ jobs:
           sleep 8
           curl -f http://localhost:8080/finance/kpis
 
-      # Limpa volumes e containers mesmo se uma etapa anterior falhar.
       - name: Shutdown environment
         if: always()
         run: docker compose down -v
+
+  # --- JOB 2: DEPLOY REAL
+  deploy-to-production:
+    needs: build-and-test-simulation
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push Official Images
+        run: |
+          docker compose build
+          docker compose push
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          GIT_PAT: ${{ secrets.GIT_PAT }}
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: GIT_PAT
+          script: |
+            set -e
+            mkdir -p ~/app/scale-to-insight
+            cd ~/app/scale-to-insight
+            
+            if [ ! -d ".git" ]; then
+              git clone https://$GIT_PAT@github.com/${{ github.repository }}.git .
+            else
+              git remote set-url origin https://$GIT_PAT@github.com/${{ github.repository }}.git
+              git pull origin main
+            fi
+            
+            docker compose pull
+            docker compose up -d --remove-orphans
